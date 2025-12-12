@@ -19,14 +19,14 @@ android {
         multiDexEnabled = true // Hỗ trợ nhiều thư viện lớn
     }
 
-    // ✅ Dùng Java 17 để tránh cảnh báo "Java 8 obsolete"
+    // ✅ Dùng Java 21 LTS để tận dụng các tính năng mới nhất
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     kotlinOptions {
-        jvmTarget = "17"
+        jvmTarget = "21"
     }
 
     buildTypes {

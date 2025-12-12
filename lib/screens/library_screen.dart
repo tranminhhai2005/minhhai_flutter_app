@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'player_screen.dart';
+import 'package:minhhai/screens/player_screen.dart';
+import 'package:minhhai/screens/playlist_detail_screen.dart';
+import 'package:minhhai/auth_service.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -12,6 +14,7 @@ class LibraryScreen extends StatefulWidget {
 class _LibraryScreenState extends State<LibraryScreen> {
   List<String> _favoriteSongs = [];
   List<String> _historySongs = [];
+  List<String> _playlists = [];
 
   @override
   void initState() {
@@ -21,10 +24,32 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Future<void> _loadLibrary() async {
     final prefs = await SharedPreferences.getInstance();
+    final username = AuthService.currentUser ?? "guest";
+    
     setState(() {
-      _favoriteSongs = prefs.getStringList("favorites") ?? [];
-      _historySongs = prefs.getStringList("history") ?? [];
+      _favoriteSongs = prefs.getStringList("favorites_$username") ?? [];
+      _historySongs = prefs.getStringList("history_$username") ?? [];
+      _playlists = prefs.getStringList("playlists_$username") ?? [];
     });
+  }
+
+  Future<void> _deletePlaylist(String playlistName) async {
+    final prefs = await SharedPreferences.getInstance();
+    final username = AuthService.currentUser ?? "guest";
+    
+    _playlists.remove(playlistName);
+    await prefs.setStringList("playlists_$username", _playlists);
+    
+    // Xóa dữ liệu playlist
+    await prefs.remove("playlist_${username}_$playlistName");
+    
+    setState(() {});
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("🗑️ Đã xóa playlist '$playlistName'")),
+      );
+    }
   }
 
   @override
@@ -121,15 +146,31 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ),
               const SizedBox(height: 10),
 
-              ListTile(
-                leading: const Icon(Icons.queue_music, color: Colors.blue),
-                title: const Text("Danh sách phát của bạn"),
-                subtitle: const Text("Chưa có nội dung..."),
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text("🎶 Tính năng Playlists sắp ra mắt!")));
-                },
-              ),
+              _playlists.isEmpty
+                  ? const Text("Chưa có danh sách phát nào...")
+                  : Column(
+                      children: _playlists.map((playlistName) {
+                        return ListTile(
+                          leading: const Icon(Icons.queue_music, color: Colors.blue),
+                          title: Text(playlistName),
+                          subtitle: const Text("Bấm để xem chi tiết"),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _deletePlaylist(playlistName),
+                          ),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => PlaylistDetailScreen(
+                                  playlistName: playlistName,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      }).toList(),
+                    ),
 
               const Divider(height: 30, thickness: 1),
 

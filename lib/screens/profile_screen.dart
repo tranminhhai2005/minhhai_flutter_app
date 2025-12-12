@@ -4,11 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:intl/intl.dart'; // ⏰ format ngày giờ
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
-import '../auth_service.dart';
+import 'package:minhhai/auth_service.dart';
+import 'package:minhhai/main.dart' show globalThemeProvider;
+import 'package:minhhai/screens/qrcode_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -29,253 +30,421 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadAvatar();
   }
 
-  // 🔹 Lấy thông tin user hiện tại
+  // ==========================================
+  // 🔹 Hàm tính thời gian sử dụng (Format: X năm X tháng X ngày HH:MM:SS)
+  // ==========================================
+  String calculateUsedTime(DateTime created) {
+    final now = DateTime.now();
+    final diff = now.difference(created);
+
+    int years = diff.inDays ~/ 365;
+    int months = (diff.inDays % 365) ~/ 30;
+    int days = diff.inDays % 30;
+    int hours = diff.inHours % 24;
+    int minutes = diff.inMinutes % 60;
+    int seconds = diff.inSeconds % 60;
+
+    return "$years năm $months tháng $days ngày "
+        "${hours.toString().padLeft(2, '0')}:"
+        "${minutes.toString().padLeft(2, '0')}:"
+        "${seconds.toString().padLeft(2, '0')}";
+  }
+
+  // ==========================================
+  // 🔹 Lấy thông tin user
+  // ==========================================
   Future<void> _loadUserInfo() async {
     final users = await AuthService.getAllUsers();
-    if (AuthService.currentUser != null) {
+    String? current = AuthService.currentUser;
+
+    if (current != null) {
       final user = users.firstWhere(
-        (u) => u['username'] == AuthService.currentUser,
+        (u) => u["username"] == current,
         orElse: () => {},
       );
-      setState(() {
-        currentUser = user;
-      });
+
+      setState(() => currentUser = user);
     }
   }
 
-  // 🔹 Chọn ảnh đại diện
+  // ==========================================
+  // 🔹 Avatar Logic
+  // ==========================================
   Future<void> _pickImage() async {
-    final XFile? pickedFile =
-        await _picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      final tempImage = File(pickedFile.path);
-      final appDir = await getApplicationDocumentsDirectory();
-      final fileName = pickedFile.name;
-      final savedImage = await tempImage.copy('${appDir.path}/$fileName');
+    final XFile? picked = await _picker.pickImage(source: ImageSource.gallery);
+    if (picked != null) {
+      final temp = File(picked.path);
+      final dir = await getApplicationDocumentsDirectory();
+      final saved = await temp.copy("${dir.path}/${picked.name}");
 
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('avatar_path', savedImage.path);
+      await prefs.setString("avatar_path", saved.path);
 
-      setState(() {
-        _avatarImage = savedImage;
-      });
+      setState(() => _avatarImage = saved);
     }
   }
 
-  // 🔹 Tải lại ảnh đại diện đã lưu
   Future<void> _loadAvatar() async {
     final prefs = await SharedPreferences.getInstance();
-    final String? path = prefs.getString('avatar_path');
+    final path = prefs.getString("avatar_path");
     if (path != null && File(path).existsSync()) {
-      setState(() {
-        _avatarImage = File(path);
-      });
+      setState(() => _avatarImage = File(path));
     }
   }
 
-  // 🔹 Xóa ảnh đại diện
   Future<void> _deleteAvatar() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('avatar_path');
-    setState(() {
-      _avatarImage = null;
-    });
+    await prefs.remove("avatar_path");
+    setState(() => _avatarImage = null);
   }
 
-  // 🔹 Xuất PDF có logo + tiếng Việt + thời gian đầy đủ
+  // ==========================================
+  // 🔥 Chỉnh sửa thông tin
+  // ==========================================
+  void _editProfile() {
+    final emailCtrl = TextEditingController(text: currentUser?['email']);
+    final phoneCtrl = TextEditingController(text: currentUser?['phone']);
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Chỉnh sửa thông tin"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: emailCtrl,
+              decoration: const InputDecoration(labelText: "Email mới"),
+            ),
+            TextField(
+              controller: phoneCtrl,
+              decoration: const InputDecoration(labelText: "Số điện thoại mới"),
+              keyboardType: TextInputType.phone,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            child: const Text("Hủy"),
+            onPressed: () => Navigator.pop(context),
+          ),
+          ElevatedButton(
+            child: const Text("Lưu"),
+            onPressed: () async {
+              await AuthService.updateUser(
+                currentUser!['username'],
+                {
+                  'email': emailCtrl.text.trim(),
+                  'phone': phoneCtrl.text.trim(),
+                },
+              );
+              _loadUserInfo();
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("✔ Cập nhật thành công")),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================
+  // 🔥 Xuất PDF (CÓ ẢNH + ĐỊNH DẠNG THỜI GIAN)
+  // ==========================================
   Future<void> _exportPDF() async {
     if (currentUser == null) return;
 
     final pdf = pw.Document();
 
-    // ✅ Font tiếng Việt
-    final fontData =
-        await rootBundle.load("assets/fonts/roboto/Roboto-Regular.ttf");
-    final ttf = pw.Font.ttf(fontData);
-    final boldData =
-        await rootBundle.load("assets/fonts/roboto/Roboto-Bold.ttf");
-    final boldTtf = pw.Font.ttf(boldData);
+    // Load Font
+    final font = pw.Font.ttf(
+        await rootBundle.load("assets/fonts/roboto/Roboto-Regular.ttf"));
+    final bold = pw.Font.ttf(
+        await rootBundle.load("assets/fonts/roboto/Roboto-Bold.ttf"));
 
-    // ✅ Logo
-    final logoFile = File('assets/images/dau.jpg');
-    pw.MemoryImage? logoImage;
-    if (await logoFile.exists()) {
-      logoImage = pw.MemoryImage(await logoFile.readAsBytes());
+    // 1. Xử lý Ảnh đại diện cho PDF
+    pw.MemoryImage? profileImage;
+    if (_avatarImage != null && _avatarImage!.existsSync()) {
+      final imageBytes = await _avatarImage!.readAsBytes();
+      profileImage = pw.MemoryImage(imageBytes);
     }
 
-    // ✅ Lấy ngày tạo + tính số ngày dùng
-    final createdAt = currentUser!['created_at'];
-    DateTime? createdDate;
-    int usedDays = 0;
-    String formattedCreatedAt = "Không xác định";
-
-    if (createdAt != null && createdAt is String) {
-      createdDate = DateTime.tryParse(createdAt);
-      if (createdDate != null) {
-        usedDays = DateTime.now().difference(createdDate).inDays;
-        formattedCreatedAt = DateFormat('dd/MM/yyyy HH:mm:ss').format(createdDate);
+    // 2. Xử lý Thời gian tạo
+    String formattedTime = "0 năm 0 tháng 0 ngày 00:00:00";
+    if (currentUser!["created_at"] != null) {
+      DateTime? created = DateTime.tryParse(currentUser!["created_at"].toString());
+      if (created != null) {
+        formattedTime = calculateUsedTime(created);
       }
     }
 
-    // ✅ Ảnh đại diện
-    pw.Widget? avatarWidget;
-    if (_avatarImage != null && await _avatarImage!.exists()) {
-      final imageBytes = await _avatarImage!.readAsBytes();
-      final image = pw.MemoryImage(imageBytes);
-      avatarWidget = pw.Center(
-        child: pw.Container(
-          width: 100,
-          height: 100,
-          decoration: pw.BoxDecoration(
-            shape: pw.BoxShape.circle,
-            image: pw.DecorationImage(image: image, fit: pw.BoxFit.cover),
-          ),
-        ),
-      );
-    }
-
-    // ✅ Trang PDF
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
-        build: (pw.Context context) => pw.Container(
-          color: PdfColors.white,
-          padding: const pw.EdgeInsets.all(24),
+        build: (_) => pw.Padding(
+          padding: const pw.EdgeInsets.all(32),
           child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            crossAxisAlignment: pw.CrossAxisAlignment.center, // Căn giữa nội dung
             children: [
-              pw.Text("Thông tin người dùng",
-                  style: pw.TextStyle(
-                      font: boldTtf, fontSize: 22, fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 10),
-              if (logoImage != null) pw.Image(logoImage, width: 80, height: 80),
-              pw.SizedBox(height: 15),
-              if (avatarWidget != null) avatarWidget,
-              pw.SizedBox(height: 25),
-              pw.Align(
+              // --- ẢNH ĐẠI DIỆN TRONG PDF ---
+              if (profileImage != null)
+                pw.Container(
+                  width: 100,
+                  height: 100,
+                  margin: const pw.EdgeInsets.only(bottom: 20),
+                  child: pw.ClipOval(
+                    child: pw.Image(profileImage, fit: pw.BoxFit.cover),
+                  ),
+                )
+              else
+                pw.Container(
+                  width: 100,
+                  height: 100,
+                  margin: const pw.EdgeInsets.only(bottom: 20),
+                  decoration: const pw.BoxDecoration(
+                    color: PdfColors.grey300,
+                    shape: pw.BoxShape.circle,
+                  ),
+                ),
+              // ------------------------------
+
+              pw.Text("THÔNG TIN NGƯỜI DÙNG",
+                  style: pw.TextStyle(font: bold, fontSize: 24)),
+              pw.SizedBox(height: 30),
+
+              pw.Container(
                 alignment: pw.Alignment.centerLeft,
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text("👤 Tên đăng nhập: ${currentUser!['username']}",
-                        style: pw.TextStyle(font: ttf, fontSize: 16)),
-                    pw.Text("📧 Gmail: ${currentUser!['email'] ?? 'Chưa có'}",
-                        style: pw.TextStyle(font: ttf, fontSize: 16)),
-                    pw.Text("📱 Số điện thoại: ${currentUser!['phone'] ?? 'Chưa có'}",
-                        style: pw.TextStyle(font: ttf, fontSize: 16)),
-                    pw.Text("📅 Ngày tạo tài khoản: $formattedCreatedAt",
-                        style: pw.TextStyle(font: ttf, fontSize: 16)),
-                    pw.Text("⏰ Đã sử dụng: $usedDays ngày",
-                        style: pw.TextStyle(font: ttf, fontSize: 16)),
+                    pw.Text("👤 Username: ${currentUser!['username']}",
+                        style: pw.TextStyle(font: font, fontSize: 16)),
+                    pw.SizedBox(height: 10),
+                    
+                    pw.Text("📧 Email: ${currentUser!['email']}",
+                        style: pw.TextStyle(font: font, fontSize: 16)),
+                    pw.SizedBox(height: 10),
+
+                    pw.Text("📱 Phone: ${currentUser!['phone']}",
+                        style: pw.TextStyle(font: font, fontSize: 16)),
+                    pw.SizedBox(height: 10),
+
+                    // Hiển thị thời gian dạng: 0 năm 0 tháng...
+                    pw.Text("⏰ Thời gian sử dụng: $formattedTime",
+                        style: pw.TextStyle(font: font, fontSize: 16)),
                   ],
                 ),
               ),
-              pw.SizedBox(height: 20),
-              pw.Divider(),
-              pw.SizedBox(height: 10),
-              pw.Text("Cảm ơn bạn đã sử dụng ứng dụng của Minh Hải ❤️",
-                  style: pw.TextStyle(font: ttf, fontSize: 14)),
             ],
           ),
         ),
       ),
     );
 
-    // ✅ Lưu file PDF
     final dir = await getApplicationDocumentsDirectory();
     final file = File("${dir.path}/user_info.pdf");
     await file.writeAsBytes(await pdf.save());
 
-    // ✅ Hiển thị PDF
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("✅ Xuất PDF thành công: ${file.path}")),
-    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("PDF đã được tạo: ${file.path}")),
+      );
+    }
 
     await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
+      onLayout: (_) async => pdf.save(),
     );
   }
 
+  // ==========================================
+  // UI
+  // ==========================================
+
   @override
   Widget build(BuildContext context) {
-    int daysSinceRegister = 0;
-    String formattedDate = "Không xác định";
-    DateTime? createdDate;
-
-    if (currentUser?['created_at'] != null &&
-        currentUser!['created_at'] is String) {
-      createdDate = DateTime.tryParse(currentUser!['created_at']);
-      if (createdDate != null) {
-        daysSinceRegister = DateTime.now().difference(createdDate).inDays;
-        formattedDate = DateFormat('dd/MM/yyyy HH:mm:ss').format(createdDate);
-      }
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: const Text("👤 Thông tin của tôi"),
         backgroundColor: Colors.white,
       ),
+
       body: currentUser == null
           ? const Center(child: Text("Không tìm thấy thông tin user"))
           : Padding(
               padding: const EdgeInsets.all(20),
               child: SingleChildScrollView(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 20),
-                    CircleAvatar(
-                      radius: 60,
-                      backgroundColor: Colors.deepPurple.shade100,
-                      backgroundImage:
-                          _avatarImage != null ? FileImage(_avatarImage!) : null,
-                      child: _avatarImage == null
-                          ? const Icon(Icons.person,
-                              size: 60, color: Colors.grey)
-                          : null,
-                    ),
-                    const SizedBox(height: 12),
-                    ElevatedButton.icon(
-                      onPressed: _pickImage,
-                      icon: const Icon(Icons.image),
-                      label: const Text("Chọn ảnh đại diện"),
-                    ),
-                    if (_avatarImage != null)
-                      TextButton.icon(
-                        onPressed: _deleteAvatar,
-                        icon: const Icon(Icons.delete_outline, color: Colors.red),
-                        label: const Text("Xóa ảnh đại diện",
-                            style: TextStyle(color: Colors.red)),
+                    // Avatar UI
+                    Center(
+                      child: CircleAvatar(
+                        radius: 60,
+                        backgroundColor: Colors.deepPurple.shade100,
+                        backgroundImage: _avatarImage != null
+                            ? FileImage(_avatarImage!)
+                            : null,
+                        child: _avatarImage == null
+                            ? const Icon(Icons.person, size: 60)
+                            : null,
                       ),
+                    ),
+
+                    const SizedBox(height: 15),
+
+                    Center(
+                      child: ElevatedButton.icon(
+                        onPressed: _pickImage,
+                        icon: const Icon(Icons.image),
+                        label: const Text("Chọn ảnh đại diện"),
+                      ),
+                    ),
+
+                    if (_avatarImage != null)
+                      Center(
+                        child: TextButton.icon(
+                          onPressed: _deleteAvatar,
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          label: const Text("Xóa ảnh đại diện",
+                              style: TextStyle(color: Colors.red)),
+                        ),
+                      ),
+
+                    const SizedBox(height: 20),
+
+                    // Buttons (ĐÃ XÓA NÚT ĐĂNG XUẤT)
+                    Center(
+                      child: ElevatedButton.icon(
+                        onPressed: _editProfile,
+                        icon: const Icon(Icons.edit),
+                        label: const Text("Sửa thông tin"),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 25),
+
+                    // Info
+                    _buildInfoRow("Username:", "${currentUser!['username']}"),
+                    _buildInfoRow("Email:", "${currentUser!['email']}"),
+                    _buildInfoRow("Phone:", "${currentUser!['phone']}"),
+                    
+                    // Hiển thị ngày tạo trong App (Vẫn giữ format cũ hoặc đổi tùy bạn)
+                    _buildInfoRow("Created:", "${currentUser!['created_at']}"),
+
                     const SizedBox(height: 30),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+
+                    // 🌙 Dark Mode Toggle
+                    Container(
+                      padding: const EdgeInsets.all(15),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text("👤 Tên đăng nhập: ${currentUser!['username']}"),
-                          Text("📧 Gmail: ${currentUser!['email'] ?? 'Chưa có'}"),
-                          Text("📱 Số điện thoại: ${currentUser!['phone'] ?? 'Chưa có'}"),
-                          Text("📅 Ngày tạo tài khoản: $formattedDate"),
-                          Text("⏰ Đã sử dụng: $daysSinceRegister ngày"),
+                          const Row(
+                            children: [
+                              Icon(Icons.brightness_4, size: 24),
+                              SizedBox(width: 10),
+                              Text(
+                                "🌙 Dark Mode",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Switch(
+                            value: globalThemeProvider.isDarkMode,
+                            onChanged: (value) {
+                              setState(() {
+                                globalThemeProvider.toggleTheme();
+                              });
+                            },
+                            activeThumbColor: Colors.deepPurple,
+                          ),
                         ],
                       ),
                     ),
+
                     const SizedBox(height: 30),
-                    ElevatedButton.icon(
-                      onPressed: _exportPDF,
-                      icon: const Icon(Icons.picture_as_pdf),
-                      label: const Text("Xuất PDF"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple,
-                        foregroundColor: Colors.white,
-                      ),
+
+                    // 📄 Xuất PDF & 🔲 QR Code
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: _exportPDF,
+                          icon: const Icon(Icons.picture_as_pdf),
+                          label: const Text("📄 PDF"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.deepPurple,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            if (currentUser != null) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => QRCodeScreen(userData: currentUser!),
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.qr_code_2),
+                          label: const Text("🔲 QR"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
             ),
+    );
+  }
+
+  // Widget phụ để hiển thị dòng thông tin cho gọn code
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.deepPurple,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 16, color: Colors.black87),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

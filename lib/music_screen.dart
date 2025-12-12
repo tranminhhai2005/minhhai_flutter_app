@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'login_screen.dart';
 import 'auth_service.dart';
+import 'login_screen.dart';
 import 'user_list_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/search_screen.dart';
@@ -17,7 +17,7 @@ class MusicScreen extends StatefulWidget {
 class _MusicScreenState extends State<MusicScreen> {
   int _currentIndex = 0;
 
-  // ✅ Danh sách các tab màn hình
+  /// 4 tab dưới
   final List<Widget> _screens = const [
     HomeScreen(),
     SearchScreen(),
@@ -34,7 +34,7 @@ class _MusicScreenState extends State<MusicScreen> {
         title: const Text("🎵 Music Player"),
         backgroundColor: Colors.deepPurple,
         actions: [
-          // ✅ Nếu là admin -> hiển thị nút quản lý user
+          // 👉 Admin được xem danh sách user
           if (username == "admin")
             IconButton(
               tooltip: "Danh sách người dùng",
@@ -42,45 +42,44 @@ class _MusicScreenState extends State<MusicScreen> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const UserListScreen(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const UserListScreen()),
                 );
               },
             ),
 
-          // ✅ Nút đăng xuất
+          // 👉 Đăng xuất
           IconButton(
             tooltip: "Đăng xuất",
             icon: const Icon(Icons.logout),
             onPressed: () {
               AuthService.logout();
+
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
               );
             },
           ),
         ],
       ),
 
-      // ✅ Hiển thị màn hình tương ứng tab
       body: _screens[_currentIndex],
 
-      // ✅ Thanh điều hướng dưới
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
         selectedItemColor: Colors.deepPurple,
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,
+        onTap: (i) => setState(() => _currentIndex = i),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: "Search"),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: "Home",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.search),
+            label: "Search",
+          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.library_music),
             label: "Library",

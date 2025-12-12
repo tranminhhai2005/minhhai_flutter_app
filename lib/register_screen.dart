@@ -2,8 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
-import 'auth_service.dart';
-import 'login_screen.dart';
+
+import 'package:minhhai/auth_service.dart';
+import 'package:minhhai/login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -23,87 +24,79 @@ class _RegisterScreenState extends State<RegisterScreen> {
   File? _avatarImage;
   final ImagePicker _picker = ImagePicker();
 
-  /// 🖼️ Chọn ảnh đại diện
+  // 📸 CHỌN ẢNH
   Future<void> _pickImage() async {
-    final XFile? pickedFile =
-        await _picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      final tempImage = File(pickedFile.path);
-      final appDir = await getApplicationDocumentsDirectory();
-      final fileName = pickedFile.name;
-      final savedImage = await tempImage.copy('${appDir.path}/$fileName');
-      setState(() {
-        _avatarImage = savedImage;
-      });
-    }
+    final XFile? file = await _picker.pickImage(source: ImageSource.gallery);
+    if (file == null) return;
+
+    final appDir = await getApplicationDocumentsDirectory();
+    final saved = await File(file.path).copy("${appDir.path}/${file.name}");
+
+    setState(() => _avatarImage = saved);
   }
 
-  /// ✅ Xử lý đăng ký
+  // 🔐 ĐĂNG KÝ
   Future<void> _register() async {
     final username = _usernameController.text.trim();
     final email = _emailController.text.trim();
     final phone = _phoneController.text.trim();
-    final password = _passwordController.text.trim();
-    final confirmPassword = _confirmPasswordController.text.trim();
+    final pass = _passwordController.text.trim();
+    final confirm = _confirmPasswordController.text.trim();
 
     if (username.isEmpty ||
         email.isEmpty ||
         phone.isEmpty ||
-        password.isEmpty ||
-        confirmPassword.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("⚠️ Vui lòng nhập đầy đủ thông tin!")),
-      );
+        pass.isEmpty ||
+        confirm.isEmpty) {
+      _show("⚠️ Vui lòng nhập đầy đủ thông tin!");
       return;
     }
 
     if (!email.contains("@") || !email.contains(".")) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Email không hợp lệ!")),
-      );
+      _show("❌ Email không hợp lệ!");
       return;
     }
 
     if (phone.length < 9) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Số điện thoại không hợp lệ!")),
-      );
+      _show("❌ Số điện thoại không hợp lệ!");
       return;
     }
 
-    if (password != confirmPassword) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Mật khẩu xác nhận không khớp!")),
-      );
+    if (pass != confirm) {
+      _show("❌ Mật khẩu xác nhận không khớp!");
       return;
     }
 
-    final success = await AuthService.register(
+    final ok = await AuthService.register(
       username,
-      password,
+      pass,
       email,
       phone,
-      _avatarImage?.path ?? "",
     );
 
-    if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("✅ Đăng ký thành công cho $username")),
-      );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("⚠️ Tài khoản $username đã tồn tại!")),
-      );
+    if (!ok) {
+      _show("⚠️ Tài khoản $username đã tồn tại!");
+      return;
     }
+
+    _show("✅ Đăng ký thành công!");
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+    );
   }
 
-  InputDecoration _inputDecoration(String label, IconData icon) {
+  // ⭐ Hiển thị Snackbar
+  void _show(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
+  }
+
+  InputDecoration _input(String text, IconData icon) {
     return InputDecoration(
-      labelText: label,
+      labelText: text,
       labelStyle: const TextStyle(color: Colors.white),
       prefixIcon: Icon(icon, color: Colors.white),
       filled: true,
@@ -122,96 +115,88 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // 🌆 Ảnh nền
           Image.asset("assets/images/background.jpg", fit: BoxFit.cover),
-          // 🌫️ Lớp phủ mờ
-          Container(color: Colors.black.withOpacity(0.6)),
+          Container(color: Colors.black.withOpacity(0.55)),
 
-          // 📋 Form đăng ký
           Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(25),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // 🖼️ Logo “dau.jpg” ở đầu form
                   ClipRRect(
                     borderRadius: BorderRadius.circular(20),
                     child: Image.asset(
-                      'assets/images/dau.jpg',
+                      "assets/images/dau.jpg",
                       width: 120,
                       height: 120,
                       fit: BoxFit.cover,
                     ),
                   ),
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 20),
 
                   const Text(
                     "Đăng ký tài khoản",
                     style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white),
+                      fontSize: 26,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 25),
 
-                  // 📸 Ảnh đại diện người dùng
                   GestureDetector(
                     onTap: _pickImage,
                     child: CircleAvatar(
-                      radius: 60,
+                      radius: 55,
+                      backgroundImage:
+                          _avatarImage != null ? FileImage(_avatarImage!) : null,
                       backgroundColor: Colors.deepPurple.shade100,
-                      backgroundImage: _avatarImage != null
-                          ? FileImage(_avatarImage!)
-                          : null,
                       child: _avatarImage == null
                           ? const Icon(Icons.add_a_photo,
-                              color: Colors.deepPurple, size: 40)
+                              size: 38, color: Colors.deepPurple)
                           : null,
                     ),
                   ),
                   const SizedBox(height: 25),
 
-                  // 🧾 Các ô nhập liệu
                   TextField(
                     controller: _usernameController,
                     style: const TextStyle(color: Colors.white),
-                    decoration:
-                        _inputDecoration("Tên đăng nhập", Icons.person),
+                    decoration: _input("Tên đăng nhập", Icons.person),
                   ),
                   const SizedBox(height: 20),
+
                   TextField(
                     controller: _emailController,
                     style: const TextStyle(color: Colors.white),
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: _inputDecoration("Email", Icons.email),
+                    decoration: _input("Email", Icons.email),
                   ),
                   const SizedBox(height: 20),
+
                   TextField(
                     controller: _phoneController,
                     style: const TextStyle(color: Colors.white),
                     keyboardType: TextInputType.phone,
-                    decoration:
-                        _inputDecoration("Số điện thoại", Icons.phone),
+                    decoration: _input("Số điện thoại", Icons.phone),
                   ),
                   const SizedBox(height: 20),
+
                   TextField(
                     controller: _passwordController,
                     obscureText: true,
                     style: const TextStyle(color: Colors.white),
-                    decoration: _inputDecoration("Mật khẩu", Icons.lock),
+                    decoration: _input("Mật khẩu", Icons.lock),
                   ),
                   const SizedBox(height: 20),
+
                   TextField(
                     controller: _confirmPasswordController,
                     obscureText: true,
                     style: const TextStyle(color: Colors.white),
-                    decoration:
-                        _inputDecoration("Xác nhận mật khẩu", Icons.lock_reset),
+                    decoration: _input("Xác nhận mật khẩu", Icons.lock_reset),
                   ),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 35),
 
-                  // 🔘 Nút đăng ký
                   ElevatedButton(
                     onPressed: _register,
                     style: ElevatedButton.styleFrom(
@@ -226,7 +211,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // 🔙 Quay lại đăng nhập
                   TextButton(
                     onPressed: () {
                       Navigator.pushReplacement(
@@ -237,8 +221,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: const Text(
                       "🔙 Đã có tài khoản? Đăng nhập ngay",
                       style: TextStyle(
-                          color: Colors.white,
-                          decoration: TextDecoration.underline),
+                        color: Colors.white,
+                        decoration: TextDecoration.underline,
+                      ),
                     ),
                   ),
                 ],

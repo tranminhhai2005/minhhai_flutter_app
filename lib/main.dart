@@ -1,30 +1,52 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart';
+import 'theme_provider.dart';
+
+// Global theme provider
+late ThemeProvider globalThemeProvider;
 
 void main() async {
   // Đảm bảo Flutter đã khởi tạo trước khi chạy async
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ Nếu sau này bạn muốn thêm SQLite init thì để ở đây
-  // await DatabaseHelper.instance.initDB();
+  globalThemeProvider = ThemeProvider();
 
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    globalThemeProvider.addListener(_onThemeChanged);
+  }
+
+  void _onThemeChanged() {
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    globalThemeProvider.removeListener(_onThemeChanged);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false, // Ẩn banner debug
+      debugShowCheckedModeBanner: false,
       title: 'Music Player',
-      theme: ThemeData(
-        primarySwatch: Colors.deepPurple,
-        scaffoldBackgroundColor: Colors.white,
-        fontFamily: 'Roboto', // ✅ font mặc định dễ nhìn
-      ),
-      home: const LoginScreen(), // Màn hình mở đầu
+      theme: globalThemeProvider.lightTheme,
+      darkTheme: globalThemeProvider.darkTheme,
+      themeMode: globalThemeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      home: const LoginScreen(),
     );
   }
 }

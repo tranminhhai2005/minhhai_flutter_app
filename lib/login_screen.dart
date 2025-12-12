@@ -14,9 +14,11 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  bool _obscurePass = true; // 👁 hiện/ẩn mật khẩu
+  bool _obscurePass = true;
 
-  /// Xử lý đăng nhập
+  // ============================================================
+  // 🔥 XỬ LÝ ĐĂNG NHẬP
+  // ============================================================
   Future<void> _login() async {
     String username = _usernameController.text.trim();
     String password = _passwordController.text.trim();
@@ -33,7 +35,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (success) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const MusicScreen()),
+        MaterialPageRoute(builder: (_) => const MusicScreen()),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -42,14 +44,16 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  /// Style ô nhập liệu
+  // ============================================================
+  // 🎨 STYLE INPUT
+  // ============================================================
   InputDecoration _inputDecoration(String label, IconData icon) {
     return InputDecoration(
       labelText: label,
       labelStyle: const TextStyle(color: Colors.white),
       prefixIcon: Icon(icon, color: Colors.white),
       filled: true,
-      fillColor: Colors.white.withOpacity(0.2),
+      fillColor: Colors.white.withOpacity(0.25),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -58,20 +62,28 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // ============================================================
+  // UI — GIAO DIỆN
+  // ============================================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
         children: [
+          // 🌆 NỀN
           Image.asset("assets/images/background.jpg", fit: BoxFit.cover),
-          Container(color: Colors.black.withOpacity(0.5)),
 
+          // 🌫️ LỚP MỜ
+          Container(color: Colors.black.withOpacity(0.55)),
+
+          // 📋 FORM
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(25),
               child: Column(
                 children: [
+                  // 🖼 LOGO
                   ClipRRect(
                     borderRadius: BorderRadius.circular(20),
                     child: Image.asset(
@@ -81,6 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       fit: BoxFit.cover,
                     ),
                   ),
+
                   const SizedBox(height: 15),
 
                   const Text(
@@ -92,17 +105,19 @@ class _LoginScreenState extends State<LoginScreen> {
                       letterSpacing: 1.5,
                     ),
                   ),
+
                   const SizedBox(height: 35),
 
-                  // username
+                  // 👤 USERNAME
                   TextField(
                     controller: _usernameController,
                     style: const TextStyle(color: Colors.white),
                     decoration: _inputDecoration("Tên đăng nhập", Icons.person),
                   ),
+
                   const SizedBox(height: 20),
 
-                  // password + hiện/ẩn
+                  // 🔐 PASSWORD
                   TextField(
                     controller: _passwordController,
                     obscureText: _obscurePass,
@@ -113,14 +128,15 @@ class _LoginScreenState extends State<LoginScreen> {
                           _obscurePass ? Icons.visibility_off : Icons.visibility,
                           color: Colors.white,
                         ),
-                        onPressed: () {
-                          setState(() => _obscurePass = !_obscurePass);
-                        },
+                        onPressed: () =>
+                            setState(() => _obscurePass = !_obscurePass),
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 30),
 
+                  // 🔘 BUTTON ĐĂNG NHẬP
                   ElevatedButton(
                     onPressed: _login,
                     style: ElevatedButton.styleFrom(
@@ -136,14 +152,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: TextStyle(fontSize: 18, color: Colors.white),
                     ),
                   ),
+
                   const SizedBox(height: 20),
 
+                  // ➜ ĐI TỚI ĐĂNG KÝ
                   TextButton(
                     onPressed: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (context) => const RegisterScreen()),
+                            builder: (_) => const RegisterScreen()),
                       );
                     },
                     child: const Text(
